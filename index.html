@@ -14,13 +14,13 @@
       padding: 20px;
     }
     .card {
-      max-width: 600px;
+      max-width: 700px;
       margin: 0 auto;
       background: #121214;
       border-radius: 18px;
       padding: 18px;
     }
-    h1 { margin-top: 0; }
+    h1 { margin: 0 0 12px 0; }
     label { display:block; margin: 14px 0 6px; }
     input, textarea {
       width: 100%;
@@ -28,8 +28,16 @@
       border: none;
       padding: 12px;
       font-size: 16px;
+      background: #f3f3f3;
     }
     textarea { resize: vertical; }
+    .row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    .row > div { width: 100%; }
+    .moodline {
+      display:flex; align-items:center; justify-content:space-between;
+      gap: 12px; margin-top: 6px; color: #bdbdc6; font-size: 13px;
+    }
+
     button {
       margin-top: 18px;
       padding: 12px;
@@ -37,71 +45,258 @@
       font-size: 17px;
       border-radius: 12px;
       border: none;
-      font-weight: 700;
+      font-weight: 800;
       background: #ffffff;
       color: #111;
     }
-    .saved {
-      background: #2ecc71;
-      color: #111;
+    .saved { background: #2ecc71; color: #111; }
+
+    .history {
+      margin-top: 18px;
+      padding-top: 14px;
+      border-top: 1px solid #2a2a31;
+    }
+    .historyHead {
+      display:flex; align-items:center; justify-content:space-between;
+      gap: 10px;
+    }
+    .historyHead h2 { margin: 0; font-size: 16px; }
+    .muted { color: #bdbdc6; font-size: 13px; margin: 8px 0 0; }
+
+    .list { list-style: none; padding: 0; margin: 12px 0 0; }
+    .item {
+      background: #0f0f11;
+      border: 1px solid #232328;
+      border-radius: 14px;
+      padding: 12px;
+      margin-bottom: 10px;
+    }
+    .itemTop {
+      display:flex; align-items:center; justify-content:space-between; gap: 10px;
+      margin-bottom: 8px;
+    }
+    .meta { color: #bdbdc6; font-size: 12px; }
+    .focusLine { font-weight: 800; margin-bottom: 6px; }
+    .notesLine { color: #d9d9e1; font-size: 14px; white-space: pre-wrap; }
+
+    .actions { display:flex; gap: 8px; margin-top: 10px; }
+    .smallBtn {
+      width: auto;
+      padding: 8px 10px;
+      font-size: 13px;
+      font-weight: 700;
+      border-radius: 10px;
+      border: 1px solid #2a2a31;
+      background: transparent;
+      color: #f2f2f2;
+      margin-top: 0;
+    }
+    .danger { border-color: #5a2a2a; color: #ffb3b3; }
+
+    @media (max-width: 640px) {
+      .row { grid-template-columns: 1fr; }
     }
   </style>
 </head>
-<body>
 
+<body>
   <div class="card">
     <h1>Daily Check-In</h1>
 
-    <label>Date</label>
-    <input id="date" type="date" />
-
-    <label>Mood (0–10)</label>
-    <input id="mood" type="range" min="0" max="10" />
+    <div class="row">
+      <div>
+        <label>Date</label>
+        <input id="date" type="date" />
+      </div>
+      <div>
+        <label>Mood (0–10)</label>
+        <input id="mood" type="range" min="0" max="10" />
+        <div class="moodline">
+          <span>Low</span>
+          <strong><span id="moodVal">5</span>/10</strong>
+          <span>High</span>
+        </div>
+      </div>
+    </div>
 
     <label>Focus</label>
     <input id="focus" type="text" placeholder="One main focus today" />
 
     <label>Notes</label>
-    <textarea id="notes" rows="6"></textarea>
+    <textarea id="notes" rows="6" placeholder="What matters today?"></textarea>
 
     <button id="saveBtn">Save</button>
+
+    <section class="history">
+      <div class="historyHead">
+        <h2>History</h2>
+        <button id="clearAllBtn" class="smallBtn danger">Clear all</button>
+      </div>
+      <div class="muted" id="historyHint">Tap an entry to load it back into the form.</div>
+      <ul id="list" class="list"></ul>
+    </section>
   </div>
 
 <script>
   const dateEl  = document.getElementById("date");
   const moodEl  = document.getElementById("mood");
+  const moodVal = document.getElementById("moodVal");
   const focusEl = document.getElementById("focus");
   const notesEl = document.getElementById("notes");
   const btn     = document.getElementById("saveBtn");
+  const listEl  = document.getElementById("list");
+  const clearAllBtn = document.getElementById("clearAllBtn");
 
-  const KEY = "daily-checkin";
+  const KEY = "daily-checkin-entries-v1";
+  let currentId = null; // if set, Save updates that entry
 
-  // set today automatically
-  const today = new Date().toISOString().split("T")[0];
-  dateEl.value = today;
+  function todayISO() {
+    return new Date().toISOString().split("T")[0];
+  }
 
-  // load saved data
-  const saved = JSON.parse(localStorage.getItem(KEY) || "{}");
-  if (saved.date)  dateEl.value  = saved.date;
-  if (saved.mood)  moodEl.value  = saved.mood;
-  if (saved.focus) focusEl.value = saved.focus;
-  if (saved.notes) notesEl.value = saved.notes;
+  function uid() {
+    return Math.random().toString(16).slice(2) + "-" + Date.now().toString(16);
+  }
 
-  btn.onclick = () => {
-    const data = {
-      date: dateEl.value,
-      mood: moodEl.value,
-      focus: focusEl.value,
-      notes: notesEl.value
+  function loadEntries() {
+    try { return JSON.parse(localStorage.getItem(KEY) || "[]"); }
+    catch { return []; }
+  }
+
+  function saveEntries(entries) {
+    localStorage.setItem(KEY, JSON.stringify(entries));
+  }
+
+  function escapeHtml(str) {
+    return (str || "").replace(/[&<>"']/g, (m) => ({
+      "&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#039;"
+    }[m]));
+  }
+
+  function truncate(str, n=140) {
+    str = (str || "").trim();
+    if (str.length <= n) return str;
+    return str.slice(0, n-1) + "…";
+  }
+
+  function setForm(entry) {
+    dateEl.value  = entry?.date || todayISO();
+    moodEl.value  = entry?.mood ?? 5;
+    moodVal.textContent = moodEl.value;
+    focusEl.value = entry?.focus || "";
+    notesEl.value = entry?.notes || "";
+    currentId = entry?.id || null;
+  }
+
+  function getFormData() {
+    return {
+      id: currentId || uid(),
+      date: dateEl.value || todayISO(),
+      mood: Number(moodEl.value || 5),
+      focus: (focusEl.value || "").trim(),
+      notes: (notesEl.value || "").trim(),
+      savedAt: new Date().toISOString()
     };
-    localStorage.setItem(KEY, JSON.stringify(data));
+  }
+
+  function render() {
+    const entries = loadEntries()
+      .sort((a,b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : (a.savedAt < b.savedAt ? 1 : -1)));
+
+    listEl.innerHTML = "";
+
+    if (entries.length === 0) {
+      listEl.innerHTML = `<li class="item"><div class="meta">No entries yet.</div></li>`;
+      return;
+    }
+
+    for (const e of entries) {
+      const li = document.createElement("li");
+      li.className = "item";
+      li.innerHTML = `
+        <div class="itemTop">
+          <div class="meta">${escapeHtml(e.date)} • Mood ${escapeHtml(String(e.mood))}/10</div>
+          <div class="meta">${escapeHtml(new Date(e.savedAt).toLocaleString())}</div>
+        </div>
+        <div class="focusLine">${escapeHtml(e.focus || "(no focus)")}</div>
+        <div class="notesLine">${escapeHtml(truncate(e.notes || "(no notes)"))}</div>
+        <div class="actions">
+          <button class="smallBtn" data-action="load" data-id="${escapeHtml(e.id)}">Load</button>
+          <button class="smallBtn danger" data-action="delete" data-id="${escapeHtml(e.id)}">Delete</button>
+        </div>
+      `;
+      listEl.appendChild(li);
+    }
+  }
+
+  // Mood label live update
+  moodEl.addEventListener("input", () => {
+    moodVal.textContent = moodEl.value;
+  });
+
+  // Save button
+  btn.onclick = () => {
+    const entries = loadEntries();
+    const data = getFormData();
+
+    const idx = entries.findIndex(x => x.id === data.id);
+    if (idx >= 0) {
+      entries[idx] = data; // update
+    } else {
+      // if same date already exists, keep both (journal-style)
+      entries.push(data);
+    }
+
+    saveEntries(entries);
+    render();
+
     btn.textContent = "Saved ✓";
     btn.classList.add("saved");
     setTimeout(() => {
       btn.textContent = "Save";
       btn.classList.remove("saved");
-    }, 1500);
+    }, 900);
   };
+
+  // History actions (load/delete)
+  listEl.addEventListener("click", (ev) => {
+    const btn = ev.target.closest("button");
+    if (!btn) return;
+
+    const action = btn.getAttribute("data-action");
+    const id = btn.getAttribute("data-id");
+    const entries = loadEntries();
+
+    if (action === "load") {
+      const entry = entries.find(x => x.id === id);
+      if (!entry) return;
+      setForm(entry);
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }
+
+    if (action === "delete") {
+      const ok = confirm("Delete this entry?");
+      if (!ok) return;
+      const next = entries.filter(x => x.id !== id);
+      saveEntries(next);
+      // if you deleted the one you're editing, reset
+      if (currentId === id) setForm(null);
+      render();
+    }
+  });
+
+  // Clear all
+  clearAllBtn.onclick = () => {
+    const ok = confirm("Clear ALL entries on this device?");
+    if (!ok) return;
+    localStorage.removeItem(KEY);
+    setForm(null);
+    render();
+  };
+
+  // Init
+  setForm({ date: todayISO(), mood: 5, focus: "", notes: "" });
+  render();
 </script>
 
 </body>
