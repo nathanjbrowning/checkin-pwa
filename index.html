@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Daily Check-In</title>
-  <meta name="theme-color" content="#111111" />
+
   <style>
     body {
       margin: 0;
@@ -17,46 +17,92 @@
       max-width: 600px;
       margin: 0 auto;
       background: #121214;
-      border-radius: 16px;
-      padding: 16px;
+      border-radius: 18px;
+      padding: 18px;
     }
     h1 { margin-top: 0; }
-    label { display:block; margin: 12px 0 6px; }
+    label { display:block; margin: 14px 0 6px; }
     input, textarea {
       width: 100%;
-      border-radius: 10px;
+      border-radius: 12px;
       border: none;
-      padding: 10px;
+      padding: 12px;
       font-size: 16px;
     }
+    textarea { resize: vertical; }
     button {
-      margin-top: 14px;
-      padding: 10px;
+      margin-top: 18px;
+      padding: 12px;
       width: 100%;
-      font-size: 16px;
-      border-radius: 10px;
+      font-size: 17px;
+      border-radius: 12px;
       border: none;
-      font-weight: bold;
+      font-weight: 700;
+      background: #ffffff;
+      color: #111;
+    }
+    .saved {
+      background: #2ecc71;
+      color: #111;
     }
   </style>
 </head>
 <body>
+
   <div class="card">
     <h1>Daily Check-In</h1>
 
     <label>Date</label>
-    <input type="date" />
+    <input id="date" type="date" />
 
     <label>Mood (0–10)</label>
-    <input type="range" min="0" max="10" value="5" />
+    <input id="mood" type="range" min="0" max="10" />
 
     <label>Focus</label>
-    <input type="text" placeholder="One main focus today" />
+    <input id="focus" type="text" placeholder="One main focus today" />
 
     <label>Notes</label>
-    <textarea rows="6"></textarea>
+    <textarea id="notes" rows="6"></textarea>
 
-    <button>Save (coming next)</button>
+    <button id="saveBtn">Save</button>
   </div>
+
+<script>
+  const dateEl  = document.getElementById("date");
+  const moodEl  = document.getElementById("mood");
+  const focusEl = document.getElementById("focus");
+  const notesEl = document.getElementById("notes");
+  const btn     = document.getElementById("saveBtn");
+
+  const KEY = "daily-checkin";
+
+  // set today automatically
+  const today = new Date().toISOString().split("T")[0];
+  dateEl.value = today;
+
+  // load saved data
+  const saved = JSON.parse(localStorage.getItem(KEY) || "{}");
+  if (saved.date)  dateEl.value  = saved.date;
+  if (saved.mood)  moodEl.value  = saved.mood;
+  if (saved.focus) focusEl.value = saved.focus;
+  if (saved.notes) notesEl.value = saved.notes;
+
+  btn.onclick = () => {
+    const data = {
+      date: dateEl.value,
+      mood: moodEl.value,
+      focus: focusEl.value,
+      notes: notesEl.value
+    };
+    localStorage.setItem(KEY, JSON.stringify(data));
+    btn.textContent = "Saved ✓";
+    btn.classList.add("saved");
+    setTimeout(() => {
+      btn.textContent = "Save";
+      btn.classList.remove("saved");
+    }, 1500);
+  };
+</script>
+
 </body>
 </html>
