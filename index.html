@@ -293,7 +293,33 @@
     setForm(null);
     render();
   };
+const exportBtn = document.getElementById("exportBtn");
 
+exportBtn.onclick = async () => {
+  const entries = loadEntries()
+    .sort((a,b) => (a.date < b.date ? 1 : -1));
+
+  if (!entries.length) {
+    alert("No entries to export.");
+    return;
+  }
+
+  let out = "Daily Check-In Export\n\n";
+
+  for (const e of entries) {
+    out += `${e.date}\n`;
+    out += `Mood: ${e.mood}/10\n`;
+    out += `Focus: ${e.focus || "-"}\n`;
+    out += `Notes:\n${e.notes || "-"}\n\n`;
+    out += `Saved at: ${new Date(e.savedAt).toLocaleString()}\n`;
+    out += "\n---\n\n";
+  }
+
+  await navigator.clipboard.writeText(out);
+
+  exportBtn.textContent = "Copied ✓";
+  setTimeout(() => exportBtn.textContent = "Export", 1200);
+};
   // Init
   setForm({ date: todayISO(), mood: 5, focus: "", notes: "" });
   render();
